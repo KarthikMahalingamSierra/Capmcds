@@ -1,0 +1,129 @@
+_schema-version: 3.3.0
+ID: My_CAP_V1
+description: A simple CAP project.
+version: 1.0.0
+modules:
+- name: My_CAP_V1-srv
+  type: nodejs
+  path: gen/srv
+  requires:
+  - name: My_CAP_V1-auth
+  - name: My_CAP_V1-db
+  provides:
+  - name: srv-api
+    properties:
+      srv-url: ${default-url}
+  parameters:
+    buildpack: nodejs_buildpack
+    readiness-health-check-http-endpoint: /health
+    readiness-health-check-type: http
+  build-parameters:
+    builder: npm
+- name: My_CAP_V1-db-deployer
+  type: hdb
+  path: gen/db
+  requires:
+  - name: My_CAP_V1-db
+  parameters:
+    buildpack: nodejs_buildpack
+- name: My_CAP_V1-destination-content
+  type: com.sap.application.content
+  requires:
+  - name: srv-api
+  - name: My_CAP_V1-destination-service
+    parameters:
+      content-target: true
+  - name: My_CAP_V1_html_repo_host
+    parameters:
+      service-key:
+        name: My_CAP_V1_html_repo_host-key
+  - name: My_CAP_V1-auth
+    parameters:
+      service-key:
+        name: My_CAP_V1-auth-key
+  parameters:
+    content:
+      instance:
+        destinations:
+        - Name: My_Router_My_CAP_V1_html_repo_host
+          ServiceInstanceName: My_CAP_V1-html5-app-host-service
+          ServiceKeyName: My_CAP_V1_html_repo_host-key
+          sap.cloud.service: My_Router
+        - Authentication: OAuth2UserTokenExchange
+          Name: My_Router_My_CAP_V1_auth
+          ServiceInstanceName: My_CAP_V1-auth
+          ServiceKeyName: My_CAP_V1-auth-key
+          sap.cloud.service: My_Router
+        - Authentication: OAuth2UserTokenExchange
+          Name: api-nodejs-srv
+          TokenServiceInstanceName: My_CAP_V1-auth
+          TokenServiceKeyName: My_CAP_V1-auth-key
+          URL: ~{srv-api/srv-url}
+          HTML5.Timeout: 1200000
+ 
+        existing_destinations_policy: ignore
+        
+
+  build-parameters:
+    no-source: true
+- name: My_CAP_V1-app-content
+  type: com.sap.application.content
+  path: .
+  requires:
+  - name: My_CAP_V1_html_repo_host
+    parameters:
+      content-target: true
+  build-parameters:
+    build-result: resources
+    requires:
+    - artifacts:
+      - mycapmui.zip
+      name: mycapmui
+      target-path: resources/
+- name: mycapmui
+  type: html5
+  path: app/mycapm_ui
+  build-parameters:
+    build-result: dist
+    builder: custom
+    commands:
+    - npm install
+    - npm run build:cf
+    supported-platforms: []
+resources:
+- name: My_CAP_V1-auth
+  type: org.cloudfoundry.managed-service
+  parameters:
+    config:
+      tenant-mode: dedicated
+      xsappname: My_CAP_V1-${org}-${space}
+    path: ./xs-security.json
+    service: xsuaa
+    service-plan: application
+- name: My_CAP_V1-db
+  type: com.sap.xs.hdi-container
+  parameters:
+    service: hana
+    service-plan: hdi-shared
+- name: My_CAP_V1-destination-service
+  type: org.cloudfoundry.managed-service
+  parameters:
+    config:
+    service: destination
+    service-name: My_CAP_V1-destination-service
+    service-plan: lite
+- name: My_CAP_V1_html_repo_host
+  type: org.cloudfoundry.managed-service
+  parameters:
+    service: html5-apps-repo
+    service-name: My_CAP_V1-html5-app-host-service
+    service-plan: app-host
+parameters:
+  deploy_mode: html5-repo
+  enable-parallel-deployments: true
+build-parameters:
+  before-all:
+  - builder: custom
+    commands:
+    - npm ci
+    - npx cds build --production
