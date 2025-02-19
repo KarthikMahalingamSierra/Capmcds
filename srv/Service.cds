@@ -1,7 +1,7 @@
-using {db as dbs} from '../db/table';
+using {db} from '../db/table';
 
 service userService {
-    entity userService as projection on dbs.users;
+    entity userService as projection on db.users;
     
 
 }
