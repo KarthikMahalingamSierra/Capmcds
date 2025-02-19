@@ -61,7 +61,7 @@ modules:
           URL: ~{srv-api/srv-url}
           HTML5.Timeout: 1200000
  
-        existing_destinations_policy: ignore
+        existing_destinations_policy: update
         
 
   build-parameters:
